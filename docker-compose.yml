@@ -1,0 +1,172 @@
+# EnterpriseAIStarter — Phase 0 stack, Windows 16 GB, CPU only. All values come from .env. Everything in Docker except rag-service (IntelliJ).
+# Staged bring-up (same objectives, components added per stage):
+#   Stage 1 plumbing : docker compose up -d                                  (core)
+#   Stage 2 ingest   : docker compose --profile ingest up -d                 (+ docling)
+#   Stage 3 guard    : LITELLM_CONFIG=config.full.yaml
+#                      docker compose --profile guard --profile trace up -d  (+ presidio, phoenix)
+#   Stage 4 eval     : stage 3 set; stop open-webui and docling while eval runs (memory)
+# Memory limits below total ~10.5 GB with everything up — see SETUP.md §1 (.wslconfig).
+name: ai-poc
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  # ---------------- core (stage 1) ----------------
+  postgres:                       # D5 vector store + LiteLLM DB
+    <<: *restart
+    image: ${IMG_POSTGRES}
+    mem_limit: 512m
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=50"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      RAG_READER_PASSWORD: ${RAG_READER_PASSWORD}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
+      - ./db/init.sql:/sql/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      retries: 20
+
+  ollama:                         # A4 inference, CPU. Server: replaced by vLLM behind the same gateway names
+    <<: *restart
+    image: ${IMG_OLLAMA}
+    mem_limit: 5g                 # qwen3:4b + bge-m3 loaded together; raise to 7g for the 8B judge run
+    cpus: 7                       # leave one core for Windows + IntelliJ
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "2"   # chat + embeddings; avoids reload on every request
+      OLLAMA_KEEP_ALIVE: "10m"
+      OLLAMA_CONTEXT_LENGTH: "8192"   # bigger context = more RAM on CPU
+    ports: ["11434:11434"]
+    volumes: [ollama:/root/.ollama]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      retries: 30
+
+  litellm:                        # A2 AI gateway
+    <<: *restart
+    image: ${IMG_LITELLM}
+    mem_limit: 1g
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    ports: ["4000:4000"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+      RAG_SERVICE_URL: ${RAG_SERVICE_URL}
+      RAG_SERVICE_KEY: ${RAG_SERVICE_KEY}
+      PRESIDIO_ANALYZER_API_BASE: http://presidio-analyzer:3000
+      PRESIDIO_ANONYMIZER_API_BASE: http://presidio-anonymizer:3000
+      PHOENIX_COLLECTOR_HTTP_ENDPOINT: http://phoenix:6006/v1/traces
+      STORE_MODEL_IN_DB: "False"
+    volumes:
+      - ./config/litellm/${LITELLM_CONFIG:-config.stage1.yaml}:/app/config.yaml:ro
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      ollama:   { condition: service_healthy }
+
+  open-webui:                     # A1 chat UI -> gateway only
+    <<: *restart
+    image: ${IMG_OPENWEBUI}
+    mem_limit: 1500m
+    ports: ["3000:8080"]
+    environment:
+      OPENAI_API_BASE_URL: http://litellm:4000/v1
+      OPENAI_API_KEY: ${OPENWEBUI_KEY}
+      ENABLE_OLLAMA_API: "false"               # UI must never bypass the gateway
+      ENABLE_FORWARD_USER_INFO_HEADERS: "true" # identity propagation (REQ-A1-04)
+      WEBUI_AUTH: "true"
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      ENABLE_WEB_SEARCH: "false"
+      # Stop the UI loading its own local embedding model (RAM); retrieval lives in rag-service
+      RAG_EMBEDDING_ENGINE: openai
+      RAG_OPENAI_API_BASE_URL: http://litellm:4000/v1
+      RAG_OPENAI_API_KEY: ${OPENWEBUI_KEY}
+      RAG_EMBEDDING_MODEL: embed-default
+      OFFLINE_MODE: "true"
+      HF_HUB_OFFLINE: "1"
+    volumes: [openwebui:/app/backend/data]
+    depends_on: [litellm]
+
+  # ---------------- stage 2 ----------------
+  docling:                        # D4 document pipeline; start for ingestion, stop afterwards (2–3 GB)
+    profiles: ["ingest", "full"]
+    <<: *restart
+    image: ${IMG_DOCLING}
+    mem_limit: 3g
+    environment:
+      UVICORN_WORKERS: "1"
+    ports: ["5010:5001"]
+
+  # ---------------- stage 3 ----------------
+  presidio-analyzer:              # A7 PII detect
+    profiles: ["guard", "full"]
+    <<: *restart
+    image: ${IMG_PRESIDIO_ANALYZER}
+    mem_limit: 1500m
+    ports: ["5002:3000"]
+
+  presidio-anonymizer:            # A7 PII mask
+    profiles: ["guard", "full"]
+    <<: *restart
+    image: ${IMG_PRESIDIO_ANONYMIZER}
+    mem_limit: 256m
+    ports: ["5003:3000"]
+
+  phoenix:                        # A9 tracing / D11 interaction log (laptop)
+    profiles: ["trace", "full"]
+    <<: *restart
+    image: ${IMG_PHOENIX}
+    mem_limit: 768m
+    ports: ["6006:6006", "4317:4317"]
+    volumes: [phoenix:/root/.phoenix]
+
+  # ---------------- optional, off by default on this laptop ----------------
+  reranker:
+    profiles: ["rerank"]
+    <<: *restart
+    image: ${IMG_TEI_CPU}
+    mem_limit: 2g
+    command: ["--model-id", "BAAI/bge-reranker-v2-m3"]
+    ports: ["8090:80"]
+    volumes: [tei:/data]
+
+  keycloak:
+    profiles: ["iam"]
+    <<: *restart
+    image: ${IMG_KEYCLOAK}
+    mem_limit: 768m
+    command: ["start-dev"]
+    ports: ["8180:8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+  rag-service:                    # containerised form, for the server move; on the laptop run it from IntelliJ
+    profiles: ["app"]
+    <<: *restart
+    build: ./rag-service
+    mem_limit: 768m
+    ports: ["8081:8081"]
+    env_file: [.env]              # same values as IntelliJ; the lines below override host-only ones
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx512m
+      RAG_DB_URL: jdbc:postgresql://postgres:5432/kb
+      RAG_GATEWAY_URL: http://litellm:4000/v1
+      RAG_DOCLING_URL: http://docling:5001
+      RAG_CORPUS_DIR: /data/corpus
+      RAG_USERS_FILE: /config/identity/users.yaml
+      RAG_OTLP_ENDPOINT: http://phoenix:6006/v1/traces
+    volumes:
+      - ./data:/data:ro
+      - ./config/identity:/config/identity:ro
+    depends_on: [postgres, litellm]
+
+volumes: { pgdata: {}, openwebui: {}, phoenix: {}, ollama: {}, tei: {} }

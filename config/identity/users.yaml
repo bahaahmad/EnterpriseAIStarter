@@ -1,0 +1,6 @@
+# Phase 0 stand-in for Keycloak group claims. Server PoC: groups come from the JWT.
+users:
+  junior.agent@cu-enterprise.com:  [agents-all]
+  senior.agent@cu-enterprise.com:  [agents-all, agents-senior]
+  fraud.analyst@cu-enterprise.com: [agents-all, fraud-team]
+default_groups: []          # unknown user sees nothing — fail closed

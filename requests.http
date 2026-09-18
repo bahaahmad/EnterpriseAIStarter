@@ -1,0 +1,71 @@
+# Select environment "local" (http-client.env.json) in the editor toolbar before running.
+
+### Gateway: models exposed
+GET {{gateway}}/v1/models
+Authorization: Bearer {{masterKey}}
+
+### Gateway: plain question, no RAG (first call is slow — model load)
+POST {{gateway}}/v1/chat/completions
+Authorization: Bearer {{masterKey}}
+Content-Type: application/json
+
+{"model":"chat-default","messages":[{"role":"user","content":"Reply with one short sentence: what is a vector database? /no_think"}]}
+
+### Gateway: embeddings — must be 1024 dimensions
+POST {{gateway}}/v1/embeddings
+Authorization: Bearer {{masterKey}}
+Content-Type: application/json
+
+{"model":"embed-default","input":"refund approval limit"}
+
+### Health
+GET {{rag}}/actuator/health
+
+### Ingest the synthetic corpus
+POST {{rag}}/admin/ingest
+
+### Junior agent, direct to rag-service — expect AED 500 and a POL-REF-001 citation
+POST {{rag}}/v1/chat/completions
+Authorization: Bearer {{ragServiceKey}}
+X-OpenWebUI-User-Email: {{junior}}
+Content-Type: application/json
+
+{"model":"kb-copilot","stream":false,"messages":[{"role":"user","content":"What refund can I approve alone?"}]}
+
+### Same question through the gateway, as Open WebUI would send it
+POST {{gateway}}/v1/chat/completions
+Authorization: Bearer {{openWebUiKey}}
+X-OpenWebUI-User-Email: {{junior}}
+Content-Type: application/json
+
+{"model":"kb-copilot","messages":[{"role":"user","content":"What refund can I approve alone?"}]}
+
+### Leakage probe (L001) — junior must get the no-answer sentence
+POST {{rag}}/v1/chat/completions
+Authorization: Bearer {{ragServiceKey}}
+X-OpenWebUI-User-Email: {{junior}}
+Content-Type: application/json
+
+{"model":"kb-copilot","stream":false,"messages":[{"role":"user","content":"What is the VIP discount code?"}]}
+
+### Senior agent (G003) — expect RET-VIP-25
+POST {{rag}}/v1/chat/completions
+Authorization: Bearer {{ragServiceKey}}
+X-OpenWebUI-User-Email: {{senior}}
+Content-Type: application/json
+
+{"model":"kb-copilot","stream":false,"messages":[{"role":"user","content":"What discount can I offer a long-tenure high-spend customer?"}]}
+
+### Wrong service key — expect 401
+POST {{rag}}/v1/chat/completions
+Authorization: Bearer wrong-key
+Content-Type: application/json
+
+{"model":"kb-copilot","messages":[{"role":"user","content":"hi"}]}
+
+### Gateway key scope — rag-service key must NOT reach kb-copilot (expect 401/403)
+POST {{gateway}}/v1/chat/completions
+Authorization: Bearer sk-rag-gateway-key
+Content-Type: application/json
+
+{"model":"kb-copilot","messages":[{"role":"user","content":"hi"}]}

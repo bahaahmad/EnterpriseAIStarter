@@ -1,0 +1,6 @@
+# Windows: shell scripts and container-mounted files must keep LF or they fail inside Linux containers
+*.sh   text eol=lf
+*.sql  text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+.env*  text eol=lf

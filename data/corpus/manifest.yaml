@@ -1,0 +1,17 @@
+# Synthetic corpus only (REQ-DAT-01). ACLs are declared here because synthetic files have no source ACL.
+documents:
+  - file: refund-policy.md
+    doc_id: POL-REF-001
+    title: Customer refund policy
+    classification: internal
+    allowed_groups: [agents-all]
+  - file: vip-retention-offers.md
+    doc_id: POL-VIP-002
+    title: VIP retention offers
+    classification: confidential
+    allowed_groups: [agents-senior]
+  - file: fraud-escalation-sop.md
+    doc_id: SOP-FRD-003
+    title: Suspected fraud escalation SOP
+    classification: restricted
+    allowed_groups: [fraud-team]

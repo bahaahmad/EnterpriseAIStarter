@@ -1,0 +1,43 @@
+# Values come from the project .env (imported below) or from real environment variables,
+# which take precedence (the container sets them in docker-compose.yml).
+spring:
+  application:
+    name: rag-service
+  config:
+    import:
+      - optional:file:../.env[.properties]   # IntelliJ: working directory = rag-service
+      - optional:file:./.env[.properties]    # working directory = project root
+  datasource:
+    url: ${RAG_DB_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+server:
+  port: 8081
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${RAG_OTLP_ENDPOINT}
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+rag:
+  gateway-url: ${RAG_GATEWAY_URL}
+  gateway-key: ${RAG_GATEWAY_KEY}
+  inbound-key: ${RAG_SERVICE_KEY}
+  chat-model: chat-default
+  embed-model: embed-default
+  docling-url: ${RAG_DOCLING_URL}
+  docling-path: /v1/convert/file
+  corpus-dir: ${RAG_CORPUS_DIR}
+  users-file: ${RAG_USERS_FILE}
+  user-header: X-OpenWebUI-User-Email
+  top-k: 6
+  min-score: 0.0
+  chunk-chars: 1200
+  chunk-overlap: 150
+  # Model-specific switch: Qwen3 thinking mode is very slow on CPU. Empty for other model families.
+  prompt-suffix: "/no_think"

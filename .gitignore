@@ -1,0 +1,11 @@
+.env
+target/
+.venv/
+__pycache__/
+eval/results/
+.idea/
+*.iml
+docs/
+models/
+TODO.md
+requirements.md
