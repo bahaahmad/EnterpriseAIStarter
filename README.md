@@ -21,9 +21,13 @@ procured, then prove the **value** on a server with real data. This repository i
 |---|---|---|
 | 1 | Every must-have building block runs on one machine, wired as it would be on a server | Met — chat UI, gateway, RAG service, model server, vector store, document pipeline, guardrails, tracing, evaluation |
 | 2 | A question travels UI → gateway → retrieval → model → cited answer | Met, with a signed-in user; roughly 40–100 s per answer on CPU, of which retrieval is ~0.4 s |
-| 3 | Permission-aware retrieval: a user can never retrieve another role's document | Met — zero leakage across 20 leakage, injection and out-of-scope cases, including a model that fully complied with an "admin mode" injection and still had nothing forbidden to disclose |
+| 3 | Permission-aware retrieval: a user can never retrieve another role's document | Met — 20 of 20 leakage, injection and out-of-scope cases clean, every refusal correctly phrased, including a model that fully complied with an "admin mode" injection and still had nothing forbidden to disclose |
 | 4 | The result is evidence, not opinion: a versioned golden set, scored automatically | Met — 57 cases over 6 documents and 5 users, deterministic leakage gate, LLM judge for factual answers |
-| 5 | Governance is present from the start: identity, masking, audit trail, supply chain | Partly — masking, scoped keys, per-user attribution and full tracing work; identity is header-based and the local PII recognizers do not cover UAE formats |
+| 5 | Governance is present from the start: identity, masking, audit trail, supply chain | Partly — masking, scoped keys, per-user attribution and full tracing work; images are pinned by digest and scanned; identity is header-based and the local PII recognizers do not cover UAE formats |
+| 6 | The whole stack runs with no network at all | Met — gateway, embeddings, generation, ingestion and the leakage gate all pass with the machine disconnected (`./scripts/offline-test.sh`). Caveat: rag-service ran from the IDE, so the containers are proven self-contained, not the service's network placement |
+
+All six objectives were exercised and recorded against a versioned golden set. Latency baseline on this
+machine: median ~46 s per answer, of which retrieval is under half a second.
 
 **What it deliberately does not prove:** answer quality at the target model size (a 4B model on CPU is not a
 70B on GPUs), latency or capacity figures, value on real data, or the security controls a production approval

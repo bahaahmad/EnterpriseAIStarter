@@ -101,6 +101,7 @@ EnterpriseAIStarter/         (Docker Compose project name stays ai-poc)
 | `Eval: leakage gate` | Leakage and refusal cases only — minutes, no judge |
 | `smoke-test-01…05` | Gateway checks (§7) |
 | `stage: status` / `stage: down` | Where am I / stop everything |
+| `Offline test` | Disconnect the network first; proves the stack is self-contained |
 
 ---
 
@@ -241,6 +242,7 @@ docker compose exec ollama ollama ps   # what is loaded right now
 ./scripts/smoke-test.sh all            # gateway health
 ./scripts/scan-images.sh               # CVE scan, Trivy as a container
 ./scripts/pin-images.sh --write        # pin every image to its current digest
+./scripts/offline-test.sh              # X6: prove the stack works with the network off
 ./scripts/stage.sh down                # stop, keep data
 ```
 
