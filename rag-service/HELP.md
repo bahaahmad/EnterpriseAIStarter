@@ -5,7 +5,8 @@ from it with permission-aware retrieval. Building block A5 of the blueprint.
 
 > Package is currently `com.cuenterprise.ai.rag`; it moves to `com.cuenterprise.ai.rag` in the next code update.
 
-See also: `../docs/phase0-flows.md` (diagrams), `../requirements.md` (REQ-A5-*), `../SETUP.md` (how to run).
+See also: `../HELP.md` (setup, stages, keys, commands) and `../README.md` (what the Starter PoC proves).
+Requirement IDs such as `REQ-A5-05` refer to the requirements document for this exercise, kept internally.
 
 ## 1. Structure
 
@@ -108,6 +109,33 @@ Example calls: `../requests.http` (environment `local`).
 - Merged with Reciprocal Rank Fusion: `1/(60+rank_vector) + 1/(60+rank_keyword)`, top `k`.
 - `SET LOCAL hnsw.iterative_scan = relaxed_order` keeps recall when the ACL filter removes most index candidates
   (needs pgvector ≥ 0.8).
+
+## 5b. Tracing (Phoenix / Langfuse)
+
+Plain OpenTelemetry spans appear in Phoenix as kind **unknown**: the UI cannot tell a retrieval from a model
+call. `config/OI.java` holds the OpenInference attribute names that fix that, and two hand-written spans carry
+them:
+
+| Span | Kind | Attributes |
+|---|---|---|
+| `kb-copilot` (`ChatController`) | CHAIN | question, user id, session, groups, answer, citation count and doc ids, whether the no-context path was taken |
+| `retrieve.hybrid` (`ChunkRepository`) | RETRIEVER | question, groups, top-k, and per document: id (`DOC#chunk`), content (clipped to 400 chars), score, title |
+
+Outbound calls carry the W3C `traceparent` header (`HttpClientConfig.traceContextInterceptor`), so LiteLLM's
+spans join this request's trace instead of starting their own. Without it, one question produces two unrelated
+traces. Whether the gateway honours the header depends on its version — if two traces persist after this
+change, the propagation is being dropped on the LiteLLM side, and the fallback is to correlate by
+`session.id` and timestamp.
+
+A question that retrieves nothing has **no LLM span at all**: the service returns the fixed sentence without
+calling the model. In a leakage test that absence is the evidence.
+
+LiteLLM contributes its own LLM, EMBEDDING and GUARDRAIL spans, so one trace shows the whole request:
+masking, retrieval with the chunks actually used, and the model call. That is also what makes the trace
+usable as the **D11 interaction log** — prompt, retrieved context, response and user in one record.
+
+Chunk text and answers are clipped before they become attributes; traces hold document content, so treat the
+tracing store as sensitive data, as D11 requires.
 
 ## 6. Deliberate simplifications
 

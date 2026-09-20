@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="1 Stack: core (stage 1)" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="docker compose up -d &amp;&amp; docker compose ps" />
+  <configuration default="false" name="2 stage: ingest" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="./scripts/stage.sh ingest" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

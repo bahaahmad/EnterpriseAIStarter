@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="4 Eval: golden set" type="ShConfigurationType">
+  <configuration default="false" name="Eval: golden set" type="ShConfigurationType">
     <option name="SCRIPT_TEXT" value="cd eval/src &amp;&amp; ../.venv/Scripts/python.exe -m eval.run_eval" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />

@@ -15,3 +15,18 @@ documents:
     title: Suspected fraud escalation SOP
     classification: restricted
     allowed_groups: [fraud-team]
+  - file: contact-handling-standards.md
+    doc_id: POL-SLA-004
+    title: Contact handling standards
+    classification: internal
+    allowed_groups: [agents-all]
+  - file: complaint-escalation-matrix.md
+    doc_id: POL-CMP-005
+    title: Complaint escalation matrix
+    classification: internal
+    allowed_groups: [agents-all]
+  - file: identity-verification-sop.md
+    doc_id: SOP-IDV-006
+    title: Identity verification SOP
+    classification: restricted
+    allowed_groups: [fraud-team]

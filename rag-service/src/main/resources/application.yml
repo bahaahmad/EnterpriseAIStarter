@@ -13,6 +13,11 @@ spring:
     password: ${POSTGRES_PASSWORD}
 server:
   port: 8081
+logging:
+  level:
+    com.cuenterprise.ai.rag: DEBUG
+    # Silences OTLP exporter connection-refused noise when Phoenix (profile trace) is not running
+    io.opentelemetry.exporter: ERROR
 management:
   tracing:
     sampling:
@@ -31,7 +36,7 @@ rag:
   chat-model: chat-default
   embed-model: embed-default
   docling-url: ${RAG_DOCLING_URL}
-  docling-path: /v1/convert/file
+  docling-path: /v1/convert/file      # older docling-serve builds use /v1alpha/convert/file
   corpus-dir: ${RAG_CORPUS_DIR}
   users-file: ${RAG_USERS_FILE}
   user-header: X-OpenWebUI-User-Email

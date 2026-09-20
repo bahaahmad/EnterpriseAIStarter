@@ -31,9 +31,25 @@ guardrails:
       guardrail: presidio
       mode: pre_call
       default_on: true
+      # Entity list is NOT optional in practice. With Presidio's defaults, DATE_TIME matches every duration
+      # ("7 business days", "30 seconds", "2 minutes") and NRP matches nationalities and roles, so policy
+      # answers come back as "credited within <DATE_TIME>" — structurally correct and useless. Masking runs
+      # before retrieval and before the model, so the model never sees the number either.
+      # Keep the entities that are actually personal data; measure any addition against the golden set.
+      pii_entities_config:
+        PERSON: "MASK"
+        PHONE_NUMBER: "MASK"
+        EMAIL_ADDRESS: "MASK"
+        CREDIT_CARD: "MASK"
+        IBAN_CODE: "MASK"
+        US_SSN: "MASK"
+      # Deliberately absent: DATE_TIME, NRP, LOCATION, URL — over-match on ordinary policy language.
 
 litellm_settings:
-  callbacks: ["arize_phoenix"]            # verify against the pinned LiteLLM version
+  # "otel" rather than "arize_phoenix": it emits guardrail and internal-call spans, so the trace shows
+  # Presidio running before the model (evidence for REQ-A7). Endpoint comes from OTEL_* in docker-compose.yml.
+  # Known limitation: the gateway still starts its own trace, so one question produces two traces (see TODO).
+  callbacks: ["otel"]
   drop_params: true
   request_timeout: 600
 

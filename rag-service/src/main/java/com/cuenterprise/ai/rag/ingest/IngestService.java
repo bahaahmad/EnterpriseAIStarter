@@ -44,7 +44,13 @@ public class IngestService {
             if (acl.isEmpty()) throw new IllegalStateException("No ACL for " + docId);   // REQ-GOV-02
             Path file = dir.resolve(d.path("file").asText());
             String title = d.path("title").asText();
-            String md = docling.toMarkdown(file);
+            String md;
+            try {
+                md = docling.toMarkdown(file);
+            } catch (Exception e) {
+                throw new IllegalStateException("Ingest failed for " + docId + " (" + file.getFileName()
+                        + ") at the Docling step: " + e.getMessage(), e);
+            }
             List<String> chunks = Chunker.chunk(md, title, props.chunkChars(), props.chunkOverlap());
 
             List<ChunkRow> rows = new ArrayList<>();
@@ -55,6 +61,11 @@ public class IngestService {
                     rows.add(new ChunkRow(docId, title, file.getFileName().toString(), b + i, batch.get(i),
                             sha256(batch.get(i)), d.path("classification").asText(), acl, vecs.get(i)));
                 }
+            }
+            if (rows.isEmpty()) throw new IllegalStateException("No chunks produced for " + docId);
+            if (rows.get(0).embedding().length != 1024) {
+                throw new IllegalStateException("Embedding has " + rows.get(0).embedding().length
+                        + " dimensions; kb_chunk expects 1024 — wrong embedding model?");
             }
             repo.replaceDocument(docId, rows);
             result.put(docId, rows.size());
